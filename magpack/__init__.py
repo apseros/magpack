@@ -1,1 +1,1 @@
-from . import inout, rotations, structures, vectorop
+from . import io, rotations, structures, vectorop

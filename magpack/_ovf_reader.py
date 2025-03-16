@@ -32,6 +32,8 @@ def _get_binary(flag, binary: int):
 
 
 class OVF:
+    """Class for reading OVF files."""
+
     @classmethod
     def _validate(cls, filename: str):
         try:
@@ -46,13 +48,19 @@ class OVF:
             return super().__new__(cls)
 
     def __init__(self, filename: str):
+        #: Path to the ovf file.
         self.filename: str = filename
+        #: Dictionary with OVF metadata.
         self.properties: dict = {}
+        #: Magnetization read from the OVF file provided as a numpy array with shape (3, nx, ny, nz):
+        #: (magnetization component, spatial x dimension, spatial y dimension, spatial z dimension).
         self.magnetization: np.ndarray
         self._get_data()
 
     def _get_data(self):
-        pattern = r'#\s(?!Begin|End)([\w]+): (\d.?\d*[eE][+-]\d+]?|\d+)'
+        """Loads metadata and magnetization binary from OVF file."""
+
+        pattern = r'#\s(?!Begin|End)([\w]+): (\d.?\d*[eE][+-]\d+]?|\d+)'  # matches header metadata
         try:
             file = open(self.filename, 'rb')
         except FileNotFoundError:
