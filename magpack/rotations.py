@@ -101,7 +101,7 @@ def eul2rot(seq: str, *args, degrees: bool = True) -> np.ndarray:
 
     Laminography: Full 360° rotation around an axis that is slanted by 45° around the y-axis.
 
-    >>> eul2rot('yz', np.linspace(1,360) ,45)
+    >>> eul2rot('yz', np.linspace(1,360), 45)
 
     """
     seq_regex = re.compile("^[xyz]+$")

@@ -1,7 +1,7 @@
 magpack package
 ===============
 
-magpack.inout module
+magpack.io module
 --------------------
 
 .. automodule:: magpack.io

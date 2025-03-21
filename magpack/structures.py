@@ -115,9 +115,9 @@ def meron(nx: int, ny: int, number: float = 1) -> np.ndarray:
     :param number:  The meron topological number.
     :return:        Magnetization vector field of a meron."""
     xx, yy = create_mesh(nx, ny)
-    rad, azimuth = cart2pol(xx, -yy)
-    theta = rad / (np.min([nx, ny]) - 1) * np.pi
-    my, mx, mz = sph2cart(np.ones_like(theta), theta, number * azimuth)
+    rad, azimuth = cart2pol(yy, -xx)
+    theta = np.clip(rad / (np.min([nx, ny]) - 1) * np.pi, 0, np.pi / 2)
+    mx, my, mz = sph2cart(np.ones_like(theta), theta, number * azimuth)
     mz = np.where(theta > np.pi / 2, 0, mz)
     return np.array([mx, my, mz])
 
@@ -195,7 +195,7 @@ def _create_mesh_ints(*args: list[int]):
     return np.meshgrid(*vectors, indexing='ij')
 
 
-def create_mesh(*args: Union[list[int], list[float]]):
+def create_mesh(*args: Union[int, float, list[Union[int, float]]]):
     """Creates an ND mesh with the specified dimensions.
 
     :param args:  The integer dimensions of the mesh or all points along the dimension.

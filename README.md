@@ -7,4 +7,4 @@ magpack can be installed through pip:
 ```pip install magpack```
 
 ### Documentation
-Comprehensive documentation is available in the doc directory or online at [readthedocs](https://magpack.readthedocs.io/en/latest/index.html)
+Comprehensive documentation is available online at [readthedocs](https://magpack.readthedocs.io/en/latest/index.html).

@@ -1,23 +1,69 @@
 import numpy as np
 from magpack import _ovf_reader
+from typing import Optional
 
 
-def save_vtk(filename: str, scalar_dict: dict) -> None:
-    """Saves a dictionary of scalar fields to a VTK file.
+def save_vtk(filename: str, scalars: Optional[dict], vectors: Optional[dict], colors: Optional[dict]) -> None:
+    """Saves data into a VTK file.
 
-    :param filename:        Name of output file.
-    :param scalar_dict:     Dictionary of scalar fields with the same shape.
+    :param filename:    Name of output file.
+    :param scalars:     Dictionary of scalar fields with the same shape.
+    :param vectors:     Dictionary of vector data.
+    :param colors:      Dictionary of color data.
+    :return:            None
     """
-    from pyevtk.hl import gridToVTK
-    shapes = [v.shape for v in scalar_dict.values() if isinstance(v, np.ndarray)]
-    if any(shapes[0] != shape for shape in shapes):
-        raise ValueError("All scalar fields must have the same shape.")
 
-    x_size, y_size, z_size = shapes[0]
-    x = np.arange(x_size)
-    y = np.arange(y_size)
-    z = np.arange(z_size)
-    gridToVTK(filename, x, y, z, pointData=scalar_dict)
+    from pyevtk.vtk import VtkFile, VtkRectilinearGrid
+    # validate inputs
+    scalar_shapes = [item.shape for item in scalars.values()]
+    vector_shapes = [item.shape[-3:] for item in vectors.values()]
+    color_shapes = [item.shape[:3] for item in colors.values()]
+
+    # convert shapes to set and check if they are all the same
+    shape = {*scalar_shapes, *vector_shapes, *color_shapes}
+    if len(shape) != 1:
+        raise ValueError('All scalars and vectors should have the same shape.')
+
+    shape = shape.pop()
+    w = VtkFile(filename, VtkRectilinearGrid)
+    w.openGrid(start=(0, 0, 0), end=tuple(dim - 1 for dim in shape))
+    w.openPiece(start=(0, 0, 0), end=tuple(dim - 1 for dim in shape))
+
+    # Point data (value is assigned to the edge points
+    xx, yy, zz = [np.arange(dim + 1) for dim in shape]
+    w.openData("Point", scalars=scalars.keys(), vectors=[*vectors.keys(), *colors.keys()])
+    for scalar_field_name, scalar_field in scalars.items():
+        print(f"Writing {scalar_field_name=}")
+        w.addData(scalar_field_name, scalar_field)
+
+    for vector_field_name, vector_field in vectors.items():
+        print(f"Writing {vector_field_name=}")
+        w.addData(vector_field_name, (vector_field[0], vector_field[1], vector_field[2]))
+
+    for color_field_name, color_field in colors.items():
+        print(f"Writing {color_field_name=}")
+        w.addData(color_field_name, (color_field[..., 0], color_field[..., 1], color_field[..., 2]))
+
+    w.closeData("Point")
+
+    # Coordinates of cell vertices
+    w.openElement("Coordinates")
+    w.addData("x_coordinates", xx)
+    w.addData("y_coordinates", yy)
+    w.addData("z_coordinates", zz)
+    w.closeElement("Coordinates")
+
+    w.closePiece()
+    w.closeGrid()
+
+    for scalar_field in scalars.values():
+        w.appendData(scalar_field)
+    for vector_field in vectors.values():
+        w.appendData((vector_field[0], vector_field[1], vector_field[2]))
+    for color_field in colors.values():
+        w.appendData(tuple(np.ascontiguousarray(color_field[..., i]) for i in range(3)))
+    w.appendData(xx).appendData(yy).appendData(zz)
+    w.save()
 
 
 def save_mat(filename: str, **data_dictionary) -> None:
@@ -79,6 +125,14 @@ def pil_save(img: np.array, filename: str, cmap: str = 'viridis', vmin: float = 
     """
     import matplotlib as mpl
     from PIL import Image
+
+    # in case of RGB data
+    if img.ndim == 3 and img.shape[2] in [3, 4]:
+        if img.max() <= 1:
+            img = img * 255
+        save_im = Image.fromarray(np.uint8(img))
+        save_im.save(filename)
+        return None
 
     vmin = img.min() if vmin is None else vmin
     vmax = img.max() if vmax is None else vmax
