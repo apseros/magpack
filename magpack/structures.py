@@ -195,7 +195,7 @@ def _create_mesh_ints(*args: list[int]):
     return np.meshgrid(*vectors, indexing='ij')
 
 
-def create_mesh(*args: Union[int, float, list[Union[int, float]]]):
+def create_mesh(*args: Union[np.ndarray, int, float, list[Union[int, float]]]):
     """Creates an ND mesh with the specified dimensions.
 
     :param args:  The integer dimensions of the mesh or all points along the dimension.

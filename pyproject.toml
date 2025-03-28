@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "magpack"
 version = "0.1.5"
-license = {file = "LICENSE.txt"}
+license = "BSD-3-Clause"
 authors = [
   { name="Andreas Apseros"},
 ]
@@ -13,18 +13,12 @@ description = "Tools for analysing 3D magnetic simulations and reconstructions"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "numpy"]
+    "numpy","pyevtk", "matplotlib", "PIL", "scipy"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: BSD License",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
 ]
-
-[project.optional-dependencies]
-vtk = ["pyevtk", "scipy"]
-image = ["matplotlib", "PIL", "scipy"]
-all = ["pyevtk", "matplotlib", "PIL", "scipy"]
 
 [project.urls]
 Homepage = "https://github.com/apseros/magpack"

@@ -3,6 +3,7 @@ import logging
 import re
 from functools import reduce
 from typing import Union
+from scipy.ndimage import affine_transform
 
 
 def _validate_rotation(matrix_shape: tuple, vf_shape: tuple) -> None:
@@ -190,7 +191,6 @@ def rotate_scalar_field(field: np.ndarray, rot_matrix: np.ndarray, order: int = 
     :param order:        Interpolation order (0 to 5, default is 1).
     :return:             Rotated scalar field, shape (x, y, z).
     """
-    from scipy.ndimage import affine_transform
     if not (0 <= order <= 5):
         raise ValueError(f"Interpolation order must be an integer between 0 and 5. Given order is {order}.")
     vf_shape = np.asarray(field.shape)

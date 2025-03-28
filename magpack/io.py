@@ -1,6 +1,11 @@
 import numpy as np
+from scipy.linalg import sqrtm
+
 from magpack import _ovf_reader
 from typing import Optional
+from pyevtk.vtk import VtkFile, VtkRectilinearGrid
+import matplotlib as mpl
+from PIL import Image
 
 
 def save_vtk(filename: str, scalars: Optional[dict], vectors: Optional[dict], colors: Optional[dict]) -> None:
@@ -12,8 +17,6 @@ def save_vtk(filename: str, scalars: Optional[dict], vectors: Optional[dict], co
     :param colors:      Dictionary of color data.
     :return:            None
     """
-
-    from pyevtk.vtk import VtkFile, VtkRectilinearGrid
     # validate inputs
     scalar_shapes = [item.shape for item in scalars.values()]
     vector_shapes = [item.shape[-3:] for item in vectors.values()]
@@ -110,8 +113,8 @@ def see_keys(data: dict, prefix: str = '') -> None:
         see_keys(data[j], previous + '/')
 
 
-def pil_save(img: np.array, filename: str, cmap: str = 'viridis', vmin: float = None, vmax: float = None,
-             alpha: bool = False, alpha_thresh: int = 750, indexing: str = 'ij') -> None:
+def save_image(img: np.array, filename: str, cmap: str = 'viridis', vmin: float = None, vmax: float = None,
+               alpha: bool = False, alpha_thresh: int = 750, indexing: str = 'ij') -> None:
     """Saves a numpy array as a full resolution png file.
 
     :param img:             Array to be saved.
@@ -123,9 +126,6 @@ def pil_save(img: np.array, filename: str, cmap: str = 'viridis', vmin: float = 
     :param alpha_thresh:    Threshold value for transparency (max 765 = 255*3).
     :param indexing:        Indexing scheme (xy is for matplotlib convention, default is ij).
     """
-    import matplotlib as mpl
-    from PIL import Image
-
     # in case of RGB data
     if img.ndim == 3 and img.shape[2] in [3, 4]:
         if img.max() <= 1:
@@ -149,3 +149,28 @@ def pil_save(img: np.array, filename: str, cmap: str = 'viridis', vmin: float = 
     save_im = np.uint8(save_im)
     save_im = Image.fromarray(save_im)
     save_im.save(filename)
+
+
+def white_to_alpha(image_path: str, output_path: str, tolerance: float = 1) -> None:
+    """Converts white or bright pixels of a png image to transparent.
+
+    :param image_path:      Path to image to be converted.
+    :param output_path:     Path to output image.
+    :param tolerance:       Tolerance for transparency. With 0 tolerance only strictly white pixels become transparent.
+    :returns:               None"""
+    img = Image.open(image_path)
+    # Convert to RGBA if not already in RGBA mode
+    tolerance = 1e-10 if tolerance <= 0 else tolerance
+
+    if img.mode != 'RGBA':
+        img = img.convert('RGBA')
+    data = np.array(img, dtype=float)
+    intensities = np.sqrt(np.sum(data[..., :3] ** 2, axis=-1))  # convert rgb values to intensities
+    max_intensity = np.sqrt(3) * 255
+    delta_intensity = max_intensity - intensities
+
+    # the degree of transparency is the relative intensity,
+    alpha = np.minimum(delta_intensity / tolerance * np.sqrt(3), 255)
+
+    output_img = np.concatenate([data[..., :3], alpha[..., np.newaxis]], axis=-1).astype(np.uint8)
+    Image.fromarray(output_img).save(output_path)
