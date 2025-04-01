@@ -1,54 +1,100 @@
-from typing import Union, Any
 import numpy as np
 from itertools import combinations
-
-from numpy import ndarray, dtype, signedinteger
 
 DEFAULT_INTERPOLATION_ORDER = 1
 
 
-def scalar_gradient(scalar_field: np.ndarray) -> np.ndarray:
+def scalar_gradient(scalar_field):
     """Compute the gradient of a scalar field.
 
-    :param scalar_field: Scalar field to compute the gradient.
-    :return:             (Vector) gradient of scalar field.
+    Parameters
+    ----------
+    scalar_field : np.ndarray
+        Scalar field to compute the gradient.
+
+    Returns
+    -------
+    np.ndarray
+        Gradient of scalar field (vector field).
     """
     return np.stack(np.gradient(scalar_field))
 
 
-def vector_laplacian(vector_field: np.ndarray) -> np.ndarray:
+def vector_laplacian(vector_field):
     """Compute the laplacian of a vector field (cartesian).
 
-    :param vector_field: Input vector field.
-    :return:             Vector laplacian of input field.
+    Parameters
+    ----------
+    vector_field : np.ndarray
+        Input vector field.
+
+    Returns
+    -------
+    np.ndarray
+        Vector Laplacian of input field.
     """
     return np.stack([scalar_laplacian(i) for i in vector_field])
 
 
-def scalar_laplacian(scalar_field: np.ndarray) -> np.ndarray:
+def scalar_laplacian(scalar_field):
     """Calculates the scalar Laplacian of a scalar field.
 
-    :param scalar_field: Scalar field to calculate the Laplacian.
-    :return: (Vector)    Laplacian of scalar field."""
+    Parameters
+    ----------
+    scalar_field : np.ndarray
+        Input scalar field.
+
+    Returns
+    -------
+    np.ndarray
+        Scalar Laplacian of input field.
+    """
     # get all spatial dimension gradients, with the first index being the component
     return divergence(scalar_gradient(scalar_field))
 
 
-def divergence(vector_field: np.ndarray) -> np.ndarray:
+def divergence(vector_field):
     """Calculates the divergence of a vector field.
 
-    :param vector_field: Input vector field.
-    :return: (Vector)    Divergence of input field."""
+    Parameters
+    ----------
+    vector_field : np.ndarray
+        Input vector field.
+
+    Returns
+    -------
+        Divergence of input field (scalar field).
+    """
     return np.add.reduce([np.gradient(vector_field[i], axis=i) for i in range(vector_field.shape[0])])
 
 
-def levi_civita_nd(*args) -> np.ndarray:
+def levi_civita_nd(*args):
     """Calculate N-Dimensional Levi Civita tensor
 
-    :param args:    Dimensions of tensor.
-    :return:        N-Dimensional Levi Civita tensor."""
+    Parameters
+    ----------
+    args : array_like
+        Dimensions of the Levi Civita tensor.
 
-    def __levi_civita(*sub_args) -> Union[ndarray[Any, dtype[Any]], signedinteger[Any]]:
+    Returns
+    -------
+    np.ndarray
+        N-dimensional Levi Civita tensor.
+    """
+
+    def __levi_civita(*sub_args):
+        """Calculation of the Levi Civita value for the member ijk... in the matrix.
+
+        Parameters
+        ----------
+        sub_args : list of int | np.ndarray
+            Indices of the current matrix member (i, j, k, ...)
+
+        Returns
+        -------
+        np.ndarray
+            Value of the Levi Civita tensor at the given indices.
+        """
         if len(sub_args) != len(set(sub_args)):
             return np.array(0)
         combs = combinations(reversed(sub_args), 2)
@@ -59,23 +105,37 @@ def levi_civita_nd(*args) -> np.ndarray:
     return vec_lc(*args)
 
 
-def _levi_civita(i: np.ndarray, j: np.ndarray, k: np.ndarray) -> np.ndarray:
+def _levi_civita(i, j, k):
     """Calculates the value of (i,j,k) element of the Levi-Civita tensor.
 
-    :param i: Index i of the array.
-    :param j: Index j of the array.
-    :param k: Index k of the array.
-    :return:  Corresponding Levi-Civita tensor."""
+    Parameters
+    ----------
+    i, j, k : np.ndarray
+        Indices of the array.
+
+    Returns
+    -------
+    np.ndarray
+        Corresponding 3D Levi Civita tensor.
+    """
     return (i - j) * (j - k) * (k - i) / 2
 
 
-def vorticity(vector_field: np.ndarray) -> np.ndarray:
+def vorticity(vector_field):
     r"""Calculates the magnetic vorticity vector field for the given vector field.
 
-    :param vector_field: Three-dimensional vector field shaped (3, nx, ny, nz) for which the vorticity will be
-                         calculated.
-    :return:             Three-dimensional vorticity vector field shaped (3, nx, ny, nz).
+    Parameters
+    ----------
+    vector_field : np.ndarray
+        Three-dimensional vector field shaped (3, nx, ny, nz) for which the vorticity will be calculated.
 
+    Returns
+    -------
+    np.ndarray
+        Three-dimensional vorticity vector field shaped (3, nx, ny, nz).
+
+    Notes
+    -----
     The magnetic vorticity, :math:`\mathbf{\Omega}`, of the magnetization vector field, :math:`\mathbf{m}`, is given by
     [1]_, [2]_:
 
@@ -83,21 +143,35 @@ def vorticity(vector_field: np.ndarray) -> np.ndarray:
 
         \Omega_i = \frac{1}{8\pi}\epsilon_{abc}\epsilon_{ijk}m_{i}\partial_{b}m_{j}\partial_{c}m_{k}
 
+    .. warning:: This calculation is slow and can be improved by writing out the expression more explicitly.
+
     References
     ----------
-    .. [1] Papanicolaou, N. , Tomaras, T. N. Nucl. Phys. B 360, 2-3
-    .. [2] Cooper, N. R. Phys. Rev. Lett. 82, 1554
+    .. [1] Papanicolaou, N. , Tomaras, T. N., *Nucl. Phys. B* **360**, 2-3
+    .. [2] Cooper, N. R., *Phys. Rev. Lett.* **82**, 1554
 
     """
     epsilon = _levi_civita(*np.indices((3, 3, 3)))
     diffs = np.stack([np.gradient(vector_field[i]) for i in range(vector_field.shape[0])])
-    vort = np.einsum('ijk,abc,jbxyz,kcxyz,ixyz->axyz', epsilon, epsilon, diffs, diffs, vector_field)
-    return vort / (8 * np.pi)
+    v = np.einsum('ijk,abc,jbxyz,kcxyz,ixyz->axyz', epsilon, epsilon, diffs, diffs, vector_field)
+    return v / (8 * np.pi)
 
 
-def skyrmion_number(vector_field: np.ndarray) -> np.ndarray:
+def skyrmion_number(vector_field):
     r"""Calculates the skyrmion topological number.
 
+    Parameters
+    ----------
+    vector_field : np.ndarray
+        The vector field shape (n, x, y) from which the skyrmion number will be calculated.
+
+    Returns
+    -------
+    np.ndarray
+        The skyrmion topological number.
+
+    Notes
+    -----
     The skyrmion topological number for the vector field :math:`\mathbf{m}` is given by evaluating integral:
 
     .. math::
@@ -105,9 +179,6 @@ def skyrmion_number(vector_field: np.ndarray) -> np.ndarray:
         \frac{1}{4\pi} \int \mathbf{m} \cdot \left( \frac{\partial \mathbf{m}}{\partial x} \times \frac{\partial
         \mathbf{m}}{\partial y} \right)\,\text{d}x \text{d}y
 
-
-    :param vector_field:    The vector field shape (n, x, y) from which the skyrmion number will be calculated.
-    :return:                The skyrmion number.
     """
     components = vector_field.shape[0]
     spatial_dimensions = vector_field.ndim - 1
@@ -127,33 +198,59 @@ def skyrmion_number(vector_field: np.ndarray) -> np.ndarray:
     return sk_n.sum() / (4 * np.pi)
 
 
-def curl(vector_field: np.ndarray) -> np.ndarray:
+def curl(vector_field):
     """Calculates the curl of a vector field.
 
-    :param vector_field: Vector field shape (3, nx, ny, nz) from which the curl will be calculated.
-    :return:             Curl of vector field."""
+    Parameters
+    ----------
+    vector_field : np.ndarray
+        Vector field shape (3, nx, ny, nz) from which the curl will be calculated.
+
+    Returns
+    -------
+    np.ndarray
+        Curl (vector field) of the input vector field.
+    """
 
     epsilon = _levi_civita(*np.indices((3, 3, 3)))
     diffs = np.stack([np.gradient(vector_field[i]) for i in range(vector_field.shape[0])])
     return np.einsum('ijk,jkabc->iabc', epsilon, diffs)
 
 
-def magnitude(vector_field: np.ndarray) -> np.ndarray:
+def magnitude(vector_field):
     """Calculates the magnitude of a vector field.
 
-    :param vector_field:    Vector field shape (3, nx, ny, nz).
-    :return:                Magnitude of vector field."""
+    Parameters
+    ----------
+    vector_field : np.ndarray
+        Vector field shape (3, nx, ny, nz)
+
+    Returns
+    -------
+    np.ndarray
+        Magnitude (scalar field) of the input vector field.
+    """
 
     return np.sqrt(np.sum(vector_field ** 2, axis=0))
 
 
-def scale_range(values: np.ndarray, norm_list: list = None, mask_zero: bool = True) -> np.ndarray:
+def scale_range(values, norm_list = None, mask_zero = True):
     """Scales all values in the array such that they lie within the specified range.
 
-    :param values:      Array to be scaled.
-    :param norm_list:   List of length 2 with lower and upper bound (defaults to [-1, 1]).
-    :param mask_zero:   If True, zero values will remain zero..
-    :return:            Scaled values."""
+    Parameters
+    ----------
+    values : np.ndarray
+        Array of values to scale.
+    norm_list : list of float (optional)
+        List of length 2 with lower and upper bound (defaults to [-1, 1]).
+    mask_zero : bool (optional)
+        If True, zero values will remain zero..
+
+    Returns
+    -------
+    np.ndarray
+        Scaled values.
+    """
     if norm_list is None:
         norm_list = [-1, 1]
     norm_range = norm_list[1] - norm_list[0]
@@ -168,25 +265,36 @@ def scale_range(values: np.ndarray, norm_list: list = None, mask_zero: bool = Tr
     return values
 
 
-def normalize(vector_field: np.ndarray) -> np.ndarray:
+def normalize(vector_field):
     """Scales all vectors in the array to unit length.
 
-    :param vector_field:    The vector field to normalize.
-    :return:                The normalized vector field."""
+    Parameters
+    ----------
+    vector_field : np.ndarray
+        Vector field shape (3, nx, ny, nz)
+
+    Returns
+    -------
+    np.ndarray
+        Unit-normalized vector field.
+    """
     mag = magnitude(vector_field)
     return np.divide(vector_field, mag, where=mag != 0)
 
 
-def cart2sph(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
+def cart2sph(x, y, z):
     """Converts cartesian coordinates to spherical coordinates.
 
-    All arrays must have the same shape (a, b, c). The resulting array has shape (3, a, b, c) and can be unpacked to the
-    radial, elevation and azimuthal components.
+    Parameters
+    ----------
+    x, y, z : np.ndarray
+        The x, y and z cartesian coordinates.
 
-    :param x:   The x cartesian coordinates.
-    :param y:   The y cartesian coordinates.
-    :param z:   The z cartesian coordinates.
-    :return:    Corresponding spherical coordinates."""
+    Returns
+    -------
+    np.ndarray
+        The resulting spherical coordinates as (radius, elevation, azimuth).
+    """
 
     r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
     th = np.arccos(z / r, where=r != 0)
@@ -194,16 +302,19 @@ def cart2sph(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
     return np.stack([r, th, ph])
 
 
-def sph2cart(r: np.ndarray, th: np.ndarray, ph: np.ndarray) -> np.ndarray:
+def sph2cart(r, th, ph):
     """Converts spherical coordinates to cartesian coordinates.
 
-    All arrays must have the same shape (x, y, z). The resulting array has shape (3, a, b, c) and can be unpacked to the
-    x, y and z components.
+    Parameters
+    ----------
+    r, th, ph : np.ndarray
+        The radial, elevation and azimuthal spherical coordinates.
 
-    :param r:       The spherical radial coordinates.
-    :param th:      The spherical elevation coordinates.
-    :param ph:      The spherical azimuthal coordinates.
-    :return:        Corresponding cartesian coordinates."""
+    Returns
+    -------
+    np.ndarray
+        The resulting cartesian coordinates as (x, y, z).
+    """
 
     x = r * np.sin(th) * np.cos(ph)
     y = r * np.sin(th) * np.sin(ph)
@@ -211,39 +322,61 @@ def sph2cart(r: np.ndarray, th: np.ndarray, ph: np.ndarray) -> np.ndarray:
     return np.stack([x, y, z])
 
 
-def cart2pol(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+def cart2pol(x, y):
     """Converts 2D cartesian coordinates to polar coordinates.
 
-    All arrays must have the same shape (a, b). The resulting array has shape (2, a, b) and can be unpacked to the
-    radial and azimuthal components.
+    Parameters
+    ----------
+    x, y : np.ndarray
+        The x and y cartesian coordinates.
 
-    :param x:   The x cartesian coordinates.
-    :param y:   The y cartesian coordinates.
-    :return:    Corresponding polar coordinates."""
+    Returns
+    -------
+    np.ndarray
+        Corresponding polar coordinates as (r, theta).
+
+    """
 
     r = np.sqrt(x ** 2 + y ** 2)
     az = np.arctan2(y, x)
     return np.stack([r, az])
 
 
-def angular_gradient(data: np.ndarray, axial=False) -> np.ndarray:
+def angular_gradient(data, axial=False):
     """Calculates the angular gradient of a vector field.
-    
-    :param data:    The vector field to calculate the angular gradient from.
-    :param axial:   True for orientation fields, False for directional fields.
-    :return:        The angular gradient scalar field."""
+
+    Parameters
+    ----------
+    data : np.ndarray
+        The vector field to calculate the angular gradient from.
+    axial : bool (optional)
+        True for orientation fields, False for directional fields.
+
+    Returns
+    -------
+    np.ndarray
+        The angular gradient (scalar field) of the input vector field.
+    """
     delta_theta = [angular_difference(data, np.roll(data, 1, axis=i), axial=axial) for i in range(1, data.ndim)]
     delta_theta = np.sum(np.array(delta_theta), axis=0) / 3
     return delta_theta
 
 
-def angular_difference(in_a: np.ndarray, in_b: np.ndarray, axial=False) -> np.ndarray:
+def angular_difference(in_a, in_b, axial=False):
     """Calculates the angular difference between vectors at the same positions of array a and b.
 
-    :param in_a:    The first vector field to compare.
-    :param in_b:    The second vector field to compare.
-    :param axial:   True for orientation fields, False for directional fields.
-    :return:        The scalar field of angular difference between the two inputs."""
+    Parameters
+    ----------
+    in_a, in_b : np.ndarray
+        The first and second vector fields to compare..
+    axial : bool (optional)
+        True for orientation fields, False for directional fields.
+
+    Returns
+    -------
+    np.ndarray
+        The angular difference (as a scalar field) between the two vector fields.
+    """
 
     if in_a.shape != in_b.shape:
         raise ValueError("Inputs must have the same shape.")
@@ -259,13 +392,20 @@ def angular_difference(in_a: np.ndarray, in_b: np.ndarray, axial=False) -> np.nd
     return ang_diff
 
 
-def magnitude_difference(in_a: np.ndarray, in_b: np.ndarray, percent=True) -> np.ndarray:
+def magnitude_difference(in_a, in_b, percent=True):
     """Calculates the magnitude difference between vectors at the same positions of array a and b.
 
-    :param in_a:    The first vector field to compare.
-    :param in_b:    The second vector field to compare.
-    :param percent: True to calculate percentage difference, False to calculate absolute difference.
-    :return:        The scalar field of magnitude difference between the two inputs.
+    Parameters
+    ----------
+    in_a, in_b : np.ndarray
+        The first and second vector fields to compare.
+    percent : bool (optional)
+        Set to True to calculate percentage difference, False to calculate absolute difference.
+
+    Returns
+    -------
+    np.ndarray
+        The magnitude difference (as a scalar field) between the two vector fields.
     """
 
     m_a = magnitude(in_a)
@@ -278,11 +418,22 @@ def magnitude_difference(in_a: np.ndarray, in_b: np.ndarray, percent=True) -> np
         return m_a - m_b
 
 
-def stokes_to_jones(stokes: np.ndarray) -> np.ndarray:
+def stokes_to_jones(stokes):
     """Converts Stokes polarization vector to Jones polarization vector.
 
-    :param stokes:  The Stokes polarization vector, shape (4,).
-    :return:        The Jones polarization vector.
+    Parameters
+    ----------
+    stokes : np.ndarray
+        Stokes polarization vector, shape (4,).
+
+    Returns
+    -------
+    np.ndarray
+        Jones polarization vector.
+
+    See Also
+    --------
+    jones_to_stokes
     """
     dop = np.sqrt(np.sum(np.power(stokes[1:], 2)))
     horizontal = stokes[1] / dop
@@ -297,11 +448,23 @@ def stokes_to_jones(stokes: np.ndarray) -> np.ndarray:
     return np.sqrt(dop) * np.array([a, b])
 
 
-def jones_to_stokes(jones: np.ndarray) -> np.ndarray:
+def jones_to_stokes(jones):
     """ Converts Jones polarization vector to Stokes polarization vector.
 
-    :param jones:  The Jones polarization vector, shape (2,).
-    :return:        The Stokes polarization vector."""
+    Parameters
+    ----------
+    jones : np.ndarray
+        Jones polarization vector, shape (2,).
+
+    Returns
+    -------
+    np.ndarray
+        Stokes polarization vector.
+
+    See Also
+    --------
+    stokes_to_jones
+    """
     jones = jones / np.sqrt(np.sum(np.abs(jones) ** 2))
     m = jones[0] * jones[1].conjugate()
     return np.array([1, np.abs(jones[0]) ** 2 - np.abs(jones[1]) ** 2, 2 * np.real(m), 2 * np.imag(m)])

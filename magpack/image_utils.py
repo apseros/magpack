@@ -1,18 +1,35 @@
-from PIL import Image
 import numpy as np
-import scipy.ndimage as ndi
+from functools import reduce
+from PIL import Image
 from matplotlib import pyplot as plt
 from matplotlib.widgets import PolygonSelector
 from scipy.signal.windows import tukey
-from typing import Union, Optional
 from magpack.structures import create_mesh
+from scipy.special import gamma
+import scipy.ndimage as ndi
 import magpack.io
 
 
-def non_affine_transform(data: np.ndarray, matrix: np.ndarray, order: int = 1) -> np.ndarray:
+def non_affine_transform(data, matrix, order=1):
     r"""Applies a non-affine transformation to the input image.
 
-    The matrix describing the non-affine transformation is described as
+    Parameters
+    ----------
+    data : np.ndarray
+        The image to be transformed.
+    matrix : np.ndarray
+        The non-affine transformation matrix.
+    order : int
+        The interpolation order of the non-affine transformation (between 0 and 5).
+
+    Returns
+    -------
+    np.ndarray
+        The transformed image.
+
+    Notes
+    -----
+    The matrix describing the non-affine transformation is given by:
 
     .. math::
         \begin{pmatrix} x' \\ y' \\ z' \end{pmatrix} =
@@ -26,6 +43,10 @@ def non_affine_transform(data: np.ndarray, matrix: np.ndarray, order: int = 1) -
     .. math::
         X = x' / z',\quad
         Y = y' / z'
+
+    See Also
+    --------
+    get_perspective_matrix, remove_distortion
 
     """
     if matrix.ndim != 2:
@@ -55,9 +76,23 @@ def non_affine_transform(data: np.ndarray, matrix: np.ndarray, order: int = 1) -
     return ndi.map_coordinates(data, [x__, y__], order=order)
 
 
-def get_perspective_matrix(source: np.ndarray, destination: np.ndarray) -> np.ndarray:
+def get_perspective_matrix(source, destination):
     r"""Provides the non-affine matrix that maps four points on the source image to the destination image.
 
+    Parameters
+    ----------
+    source : array_like, tuple
+        Array of four pairs of coordinates from source. ``[[x1,y1], [x2,y2], [x3,y3], [x4,y4]]``
+    destination : array_like, tuple
+        Array of four pairs of destination coordinates. ``[[x'1,y'1], [x'2,y'2], [x'3,y'3], [x'4,y'4]]``
+
+    Returns
+    -------
+    np.ndarray
+        Non-affine transformation matrix that maps the points from the source to the destination.
+
+    Notes
+    -----
     The expressions describing the map between the source (x, y) and destination image (X, Y) are:
 
     .. math::
@@ -71,11 +106,12 @@ def get_perspective_matrix(source: np.ndarray, destination: np.ndarray) -> np.nd
         X = m_{1}x + m_{2}y + m_{3} - m_{7}xX - m_{8}yX + 1 \\
         Y = m_{4}x + m_{5}y + m_{6} - m_{7}xY - m_{8}yY + 1
 
-    The equations are solved using linear algebra.
+    The equations are solved using linear algebra to calculate the perspective matrix.
 
-    :param source:      Array of four pairs of coordinates from source. [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-    :param destination: Array of four pairs of destination coordinates. [[x'1,y'1], [x'2,y'2], [x'3,y'3], [x'4,y'4]]
-    :return:            Non-affine transformation matrix that maps the points from the source to the destination.
+    See Also
+    --------
+    non_affine_transform, remove_distortion
+
     """
     if type(source) == list:
         source = np.array(source)
@@ -104,16 +140,30 @@ def get_perspective_matrix(source: np.ndarray, destination: np.ndarray) -> np.nd
     return output
 
 
-def remove_distortion(img: Union[np.ndarray, str], filename: str = None, show_result: bool = False,
-                      margin: float = 0.05, order: int = 1) -> Optional[np.ndarray]:
+def remove_distortion(img, filename=None, show_result=False, margin=0.05, order=1):
     """Remove perspective distortion from an image.
 
-    :param img:         Image to be transformed as numpy array or filename.
-    :param filename:    Name of output file (Optional).
-    :param show_result: Shows resulting image before returning array if True.
-    :param margin:      Margin for polygon selector.
-    :param order:       Order of non-affine transformation.
-    :return:            Transformed image as numpy array or None if saved to file.
+    Parameters
+    ----------
+    img : np.ndarray, str
+        Image to be transformed as numpy array or filename.
+    filename : str, optional
+        Name of output file (Optional).
+    show_result : bool
+        Shows resulting image before returning array if True.
+    margin : float, optional
+        Margin for polygon selector.
+    order:
+        Order of non-affine transformation.
+
+    Returns
+    -------
+    np.ndarray, optional
+        Transformed image as numpy array or None if saved to file.
+
+    See Also
+    --------
+    get_perspective_matrix, remove_distortion
     """
     if type(img) == str:
         img = np.asarray(Image.open(img))
@@ -132,11 +182,11 @@ def remove_distortion(img: Union[np.ndarray, str], filename: str = None, show_re
     dest = np.array([(0, 0), (0, img.shape[1]), (img.shape[0], img.shape[1]), (img.shape[0], 0)])
 
     m = get_perspective_matrix(src, dest)
-    if img.ndim == 2:
+
+    if img.ndim == 2:  # for greyscale image
         img_de = non_affine_transform(img, m, order=order)
     else:
-        img_de = np.stack([non_affine_transform(channel, m, order=order) for channel in img.transpose(2, 0, 1)],
-                          axis=-1)
+        img_de = np.stack([non_affine_transform(color, m, order=order) for color in img.transpose(2, 0, 1)], axis=-1)
     if filename:
         magpack.io.save_image(img_de, filename)
         return None
@@ -148,26 +198,37 @@ def remove_distortion(img: Union[np.ndarray, str], filename: str = None, show_re
     return img_de
 
 
-def rgb2gray(rgb: np.ndarray) -> np.ndarray:
+def rgb2gray(rgb):
     """Converts RGB/RGBA data of shape (x, y, ..., 3) to grayscale.
 
     The output is in the same range as the input, so either [0,1] or [0,255] ranges work.
     Only 3 indices from the last dimension are used, the rest are discarded.
 
-    :param rgb:     Numpy array of shape (x, y, ..., 3) to be converted
-    :return:        Numpy array of shape (x, y, ...) grayscale data
+    Parameters
+    ----------
+    rgb : np.ndarray
+        Numpy array of shape (x, y, ..., 3) to be converted
+
+    Returns
+    -------
+    gray : np.ndarray
+        Numpy array of shape (x, y, ...) grayscale data
     """
     return np.dot(rgb[..., :3], [0.2989, 0.5870, 0.1140])
 
 
-def hls2rgb(hue: np.ndarray, lightness: np.ndarray, saturation: Union[np.ndarray, float]) -> np.ndarray:
-    """Convert HLS values (Hue, Lightness, Saturation) to RGB values (Red, Green, Blue) for image plotting.
+def hls2rgb(hue, lightness, saturation):
+    """Convert HLS values (Hue, Lightness, Saturation) to RGB values (Red, Green, Blue) for plotting.
 
-    :param hue:         Hue [0, 2pi].
-    :param lightness:   Lightness [0, 1].
-    :param saturation:  Saturation [0, 1].
+    Parameters
+    ----------
+    hue, lightness, saturation : array_like
+        Values for the hue [0, 2pi], lightness [0, 1] and saturation [0, 1] to be converted to RGB.
 
-    :returns:           Numpy array of size input.shape + (3,) with (r, g, b) values in the [0,255] range
+    Returns
+    -------
+    np.ndarray
+        Numpy array of size (input.shape, 3) with RGB values in the 0 to 255 range.
     """
     hue = hue % (2 * np.pi)
     section = np.pi / 3
@@ -186,120 +247,162 @@ def hls2rgb(hue: np.ndarray, lightness: np.ndarray, saturation: Union[np.ndarray
     return np.moveaxis(result, 0, -1).astype(np.uint8)
 
 
-def rgb2lab(r, g, b) -> np.ndarray:
-    """Converts RGB of shape (..., 3) to LAB.
-
-    :param r:         red value [0, 1].
-    :param g:         green value [0, 1].
-    :param b:         blue value [0, 1].
-    :return:          Inpout arrays in Lab coordinates.
-    """
-    m1 = np.array([[0.4122214708, 0.5363325363, 0.0514459929],
-                   [0.2119034982, 0.6806995451, 0.1073969566],
-                   [0.0883024619, 0.2817188376, 0.6299787005]])
-    temp = np.einsum('ij,j...->i...', m1, np.stack([r, g, b]))
-    m2 = np.array([[0.2104542553, 0.7936177850, -0.0040720468],
-                   [1.9779984951, -2.4285922050, 0.4505937099],
-                   [0.0259040371, 0.7827717662, -0.8086757660]])
-    return np.einsum('ij,j...->i...', m2, np.cbrt(temp))
-
-
-def lab2rgb(lum, a, b) -> np.ndarray:
-    """Converts LAB of shape (..., 3) to RGB.
-
-    :param lum:     Lab lum value.
-    :param a:       Lab a value.
-    :param b:       Lab b value.
-    :return:        Corresponding RGB array.
-    """
-    m1 = np.array([[1, +0.3963377774, 0.2158037573],
-                   [1, -0.1055613458, -0.0638541728],
-                   [1, -0.0894841775, -1.2914855]])
-    temp = np.einsum('ij,j...->i...', m1, np.stack([lum, a, b]))
-    m2 = np.array([[+4.0767416621, -3.3077115913, +0.2309699292],
-                   [-1.2684380046, +2.6097574011, -0.3413193965],
-                   [-0.0041960863, -0.7034186147, 1.7076147010]])
-    return np.einsum('ij,j...->i...', m2, np.power(temp, 3))
-
-
-def complex_color(z: np.ndarray, saturation=0.6, log=False) -> np.ndarray:
+def complex_color(z, saturation=0.6, log=False):
     """Applies complex domain coloring to a 3D vector field.
 
-    :param z:           Input complex number.
-    :param saturation:  0...1 for color saturation.
-    :param log:         Logarithmic coloring according to the magnitude.
-    :return:            RBG array with shape (input_shape, 3) for plotting."""
+    Parameters
+    ----------
+    z : np.ndarray
+        Input complex number.
+    saturation : float
+        Color saturation value between 0...1.
+    log : bool
+        Boolean option for logarithmic coloring according to the magnitude.
+
+    Returns
+    -------
+    np.ndarray
+        RBG array with shape (input_shape, 3) for plotting."""
     radial = np.log(np.abs(z) + 1) if log else np.abs(z)
     hue = np.angle(z) + np.pi
     lightness = radial / np.max(radial)
     return hls2rgb(hue, lightness, saturation)
 
 
-def fft(data: np.ndarray) -> np.ndarray:
-    """Return the shifted fast Fourier transform for plotting.
+def fft(data):
+    """Returns the shifted fast Fourier transform for plotting.
 
-    :param data:    Data to perform N-dimensional fast Fourier transform.
-    :return:        Fourier transform of data with zero frequency component in the middle."""
+    Parameters
+    ----------
+    data : np.ndarray
+        Data to perform N-dimensional fast Fourier transform.
+
+    Returns
+    -------
+    np.ndarray
+        Fourier transform of data with zero frequency component in the middle.
+
+    See Also
+    --------
+    ifft, intensity_fft"""
+
     return np.fft.fftshift(np.fft.fftn(data))
 
 
-def intensity_fft(data: np.ndarray) -> np.ndarray:
-    """Return the intensity of a shifted fast Fourier transform for plotting.
+def intensity_fft(data):
+    """Returns the intensity of a shifted fast Fourier transform for plotting.
 
-    :param data:    Data to perform N-dimensional fast Fourier transform.
-    :return:        Intensity of Fourier transform of data with zero frequency component in the middle."""
+    Parameters
+    ----------
+    data : np.ndarray
+        Data to perform N-dimensional fast Fourier transform.
+
+    Returns
+    -------
+    np.ndarray
+        Intensity of Fourier transform of data with zero frequency component in the middle.
+
+    See Also
+    --------
+    fft, ifft"""
     return np.abs(fft(data))
 
 
-def ifft(data: np.ndarray) -> np.ndarray:
-    """Return the shifted inverse fast Fourier transform for plotting.
+def ifft(data):
+    """Returns the shifted inverse fast Fourier transform for plotting.
 
-    :param data:    Data to perform N-dimensional inverse fast Fourier transform.
-    :return:        Inverse Fourier transform of data with zero frequency component in the middle."""
+    Parameters
+    ----------
+    data : np.ndarray
+        Data to perform N-dimensional inverse fast Fourier transform.
+
+    Returns
+    -------
+    np.ndarray
+        Inverse Fourier transform of data with zero frequency component in the middle.
+
+    See Also
+    --------
+    fft, intensity_fft"""
+
     return np.fft.ifftn(np.fft.ifftshift(data))
 
 
-def fourier_shell_correlation(img1: np.ndarray, img2: np.ndarray, half_bit: bool = True, ring_size=1,
-                              window: float = 0.5) -> np.ndarray:
-    r"""Computes the Fourier shell correlation between two images.
+def fourier_shell_correlation(img1, img2, half_bit=True, window=0.5, rgb=True):
+    r"""
+    Compute the Fourier shell correlation (FSC) between two images.
 
-    :param img1:        First image.
-    :param img2:        Second image.
-    :param half_bit:    If true, use the half-bit threshold, otherwise use the one bit threshold.
-    :param ring_size:   The size of the ring window to compute Fourier shell (larger leads to smoother FSC).
-    :param window:      Tukey window option for non-periodic images.
-    :return:            Fourier shell correlation curve.
+    Parameters
+    ----------
+    img1, img2 : np.ndarray
+        First and second image as ndarray types.
+    half_bit : bool, optional
+        If True, use the half-bit threshold; otherwise, use the one-bit threshold.
+    window : float, optional
+        Apply a Tukey window for non-periodic images.
+    rgb : bool, optional
+        If True, process images as RGB.
 
+    Returns
+    -------
+    fsc : np.ndarray
+        Fourier shell correlation curve.
+    threshold : np.ndarray
+        Threshold curve
+    resolution : float
+        Resolution in pixels
 
-    The Fourier shell correlation is given by th equation:
+    Notes
+    -----
+    The Fourier shell correlation is computed using the following equation:
 
     .. math::
-
         C(r) = \frac{\Re\left\{\sum_{r_i \in r} F_1 (r_i) \cdot \sum_{r_i \in r} F_2 (r_i)^*\right\}}
         {\sqrt{\sum_{r_i \in r} |F_1 (r_i)|^2 \cdot \sum_{r_i \in r} |F_2 (r_i)|^2}}
 
+    .. warning:: This function has not been tested for N-dimensional input.
+
     """
-    shape = img1.shape
-    if img2.shape != shape:
+
+    if img2.shape != img1.shape:
         raise ValueError('Images must have same shape.')
 
-    if window:
-        img1 = img1 * np.outer(*[tukey(dim, window) for dim in shape])
-        img2 = img2 * np.outer(*[tukey(dim, window) for dim in shape])
+    shape = img1.shape
+    ndim = img1.ndim
+
+    if not rgb:
+        img1 = img1 * reduce(np.multiply.outer, [tukey(dim, window) for dim in shape])
+        img2 = img2 * reduce(np.multiply.outer, [tukey(dim, window) for dim in shape])
 
     f1, f2 = fft(img1), fft(img2)
-    max_dim = np.min(img1.shape) // 2
+    max_dim = np.min(img1.shape) // 2 if not rgb else np.min(img1.shape[:-1]) // 2
 
     num = np.real(f1 * f2.conj())
-    f1 = np.abs(f1) ** 2
-    f2 = np.abs(f2) ** 2
-    r = np.floor(np.sqrt(np.sum(np.array(create_mesh(*img1.shape)) ** 2 / ring_size, axis=0)))
+    denom = np.sqrt(np.abs(f1) ** 2 * np.abs(f2) ** 2)
 
-    fsc = np.zeros(max_dim)
+    rr = np.floor(np.hypot(*create_mesh(*shape)))
 
-    for ii in range(max_dim):
-        mask = r == ii
-        fsc[ii] = np.sum(num[mask]) / np.sqrt(np.sum(f1[mask]) * np.sum(f2[mask]))
+    def ring_sum(r):
+        mask = rr == r
+        return num[mask].sum() / denom[mask].sum()
 
-    return fsc
+    fsc = np.vectorize(ring_sum)(np.arange(max_dim))
 
+    # threshold calculation
+    snr = np.sqrt(2) if half_bit else 2
+    snr_half = snr / 2 - 0.5
+    snr_factor = 2 * np.sqrt(snr_half)
+
+    # number of elements in the ring / shell is equal to 2πr, 4πr^2 etc
+    # the first half accounts for the powers of r
+    volume = np.sqrt(np.arange(1, max_dim + 1)) ** (ndim - 1) * (2 * np.pi ** (ndim / 2) / gamma(ndim / 2))
+
+    thresh = (1 + snr_factor + snr_half * volume) / ((snr_half + 1) * volume + snr_factor)
+
+    # find intersections
+    idx = np.argwhere(np.diff(np.sign(fsc - thresh))).flatten()
+    if not np.any(idx):
+        resolution = 1
+    else:
+        resolution = 1 / (idx[0] / max_dim)
+    return fsc, thresh, resolution

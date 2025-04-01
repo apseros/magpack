@@ -6,33 +6,54 @@ import itertools
 import random
 
 
-def checkerboard(shape: tuple) -> np.ndarray:
+def checkerboard(shape):
     """Creates a checkerboard array of alternating +1 and -1 for the given shape.
 
-    :param shape:   Shape of the checkerboard.
-    :return:        Array of alternating +1 and -1 for the given shape.
+    Parameters
+    ----------
+    shape : tuple of int
+        Shape of the checkerboard.
+
+    Returns
+    -------
+    np.ndarray
+        Array of alternating +1 and -1 for the given shape.
     """
     return (np.indices(shape).sum(axis=0) % 2) * 2 - 1
 
 
-def circ_mask(nx: int, ny: int) -> np.ndarray:
+def circ_mask(nx, ny):
     """Defines a circular binary mask.
 
-    :param nx:      x dimension of mask.
-    :param ny:      y dimension of mask.
-    :return:        Binary mask."""
+    Parameters
+    ----------
+    nx, ny : int
+        x and y dimensions of the circular mask.
+
+    Returns
+    -------
+    np.ndarray
+        Circular binary mask.
+    """
     xx, yy = create_mesh(nx, ny)
     circ = np.sqrt(xx ** 2 + yy ** 2) < np.min([nx, ny]) // 2
     return circ
 
 
-def vortex(nx: int, ny: int, winding: float = 1) -> np.ndarray:
+def vortex(nx, ny, winding = 1):
     """Creates a 2D magnetization vortex.
 
-    :param nx:      x spatial dimension of vortex.
-    :param ny:      y spatial dimension of vortex.
-    :param winding: Winding number of the vortex.
-    :return:        Magnetization vector of vortex.
+    Parameters
+    ----------
+    nx, ny : int
+        x and y dimensions of the vortex.
+    winding : float (optional)
+        Winding number of the vortex
+
+    Returns
+    -------
+    np.ndarray
+        Magnetization vector of a 2D vortex with specified winding number.
     """
     xx, yy = create_mesh(nx, ny)
     rad, azimuth = cart2pol(yy, xx)
@@ -44,14 +65,24 @@ def vortex(nx: int, ny: int, winding: float = 1) -> np.ndarray:
     return np.array([mx, my, mz])
 
 
-def domain_generator(shape: list, points: int, cart: bool = False) -> tuple[np.ndarray, list[tuple]]:
+def domain_generator(shape, points, cart = False):
     """Generates Voronoi domains with random orientations.
 
-    :param shape:   Shape of the final array.
-    :param points:  Number of seed points.
-    :param cart:    Resulting orientations will be provided in cartesian coordinates if True,
-                    spherical coordinates if False.
-    :return:        Array with orientations (3, shape) and list of seed point coordinates.
+    Parameters
+    ----------
+    shape : array_like
+        Shape of the final array.
+    points : int
+        Number of seed points.
+    cart : bool (optional)
+        Return cartesian coordinates if True, spherical coordinates if False.
+
+    Returns
+    -------
+    np.ndarray
+        Array with orientations (3, shape)
+    list
+        Coordinates of seed points.
     """
     if np.prod(shape) <= points:
         raise ValueError('Number of seeds is greater than the number of points.')
@@ -76,16 +107,26 @@ def domain_generator(shape: list, points: int, cart: bool = False) -> tuple[np.n
     return orientation_field, randoms
 
 
-def skyrmion(nx, ny, number=1, helicity=0, polarity=1, neel: bool = False) -> np.ndarray:
+def skyrmion(nx, ny, number=1, helicity=0, polarity=1, neel = False):
     """Creates a skyrmion texture of size (nx, ny).
 
-    :param nx:          Number of points in the x-direction.
-    :param ny:          Number of points in the y-direction.
-    :param number:      The skyrmion topological number.
-    :param helicity:    Global angular offset.
-    :param polarity:    Direction of center spin (±1).
-    :param neel:        Neel or Bloch skyrmion.
-    :return:            Magnetization vector field of a skyrmion.
+    Parameters
+    ----------
+    nx, ny : int
+        Size of the skyrmion texture in the x and y directions.
+    number : float (optional)
+        Skyrmion topological number.
+    helicity : float (optional)
+        Helicity of the skyrmion (angular offset at each lattice site in radians).
+    polarity : int (optional)
+        Direction of central spin (±1).
+    neel : bool (optional)
+        Neel or Bloch skyrmion.
+
+    Returns
+    -------
+    np.ndarray
+        Magnetization vector field of a skyrmion.
     """
     xx, yy = create_mesh(nx, ny)
     rad, azimuth = cart2pol(xx, -yy)
@@ -107,13 +148,21 @@ def skyrmion(nx, ny, number=1, helicity=0, polarity=1, neel: bool = False) -> np
     return np.array([mx, my, mz])
 
 
-def meron(nx: int, ny: int, number: float = 1) -> np.ndarray:
+def meron(nx, ny, number = 1):
     """Creates a magnetic meron.
 
-    :param nx:      Number of points in the x-direction.
-    :param ny:      Number of points in the y-direction.
-    :param number:  The meron topological number.
-    :return:        Magnetization vector field of a meron."""
+    Parameters
+    ----------
+    nx, ny : int
+        Size of the meron texture in the x and y directions.
+    number : float (optional)
+        Meron topological number.
+
+    Returns
+    -------
+    np.ndarray
+        Magnetization vector field of a meron.
+    """
     xx, yy = create_mesh(nx, ny)
     rad, azimuth = cart2pol(yy, -xx)
     theta = np.clip(rad / (np.min([nx, ny]) - 1) * np.pi, 0, np.pi / 2)
@@ -122,14 +171,22 @@ def meron(nx: int, ny: int, number: float = 1) -> np.ndarray:
     return np.array([mx, my, mz])
 
 
-def domain_wall(nx: int, ny: int, neel=False, width=2):
+def domain_wall(nx, ny, neel=False, width=2):
     """Creates a 2D magnetic domain wall.
 
-    :param nx:      Number of points in the x-direction.
-    :param ny:      Number of points in the y-direction.
-    :param neel:    Neel (if True) or Bloch (if False) type domain wall.
-    :param width:   Width of the domain wall.
-    :return:        Magnetization vector field of the domain wall.
+    Parameters
+    ----------
+    nx, ny : int
+        Size of the domain wall along the x and y directions.
+    neel : bool (optional)
+        Neel domain wall if True, Bloch domain wall if False.
+    width : int
+        Width of the magnetic domain wall.
+
+    Returns
+    -------
+    np.ndarray
+        Magnetization vector field of the domain wall.
     """
 
     xx, yy = create_mesh(nx, ny)
@@ -146,12 +203,19 @@ def domain_wall(nx: int, ny: int, neel=False, width=2):
 def bloch_point(nx, ny, nz, inwards=False, winding=1):
     """Creates a Bloch point topological defect.
 
-    :param nx:          Number of points in the x-direction.
-    :param ny:          Number of points in the y-direction.
-    :param nz:          Number of points in the z-direction.
-    :param inwards:     If True, magnetization points into the core.
-    :param winding:     Winding number of the bloch defect.
-    :return:            Magnetization vector field of a bloch point.
+    Parameters
+    ----------
+    nx, ny, nz : int
+        Size of the Bloch point along the x, y and z directions.
+    inwards : bool (optional)
+        If True, magnetization points towards the defect's core.
+    winding : float (optional)
+        Winding number of the Bloch point.
+
+    Returns
+    -------
+    np.ndarray
+        Magnetization vector field of a bloch point.
     """
     xx, yy, zz = create_mesh(nx, ny, nz)
     _, t, p = cart2sph(xx, yy, zz)
@@ -161,12 +225,18 @@ def bloch_point(nx, ny, nz, inwards=False, winding=1):
     return np.array([mx, my, mz])
 
 
-def meron_pair(nx: int, ny: int):
-    """Creates a meron-antimeron pair.
+def meron_pair(nx, ny):
+    """Creates a meron-antimeron pair. The two meron structures are combined side-by-side along the x-axis.
 
-    :param nx:      Number of points in the x-direction.
-    :param ny:      Number of points in the y-direction.
-    :return:        Magnetization vector field of a meron-antimeron pair.
+    Parameters
+    ----------
+    nx, ny : int
+        Size of a single meron texture in the x and y directions.
+
+    Returns
+    -------
+    np.ndarray
+        Magnetization vector field of a meron-antimeron pair.
     """
     mer = meron(nx, ny, 1)
     anti_mer = meron(nx, ny, -1)
@@ -176,18 +246,35 @@ def meron_pair(nx: int, ny: int):
 def stack_config(config, repeat, axis=-1):
     """Stacks 2D slices to form a 3D structure.
 
-    :param config:  2D configuration of the structure.
-    :param repeat:  Number of times to stack the configuration.
-    :param axis:    Axis along which to stack the configuration.
-    :return:        3D configuration."""
+    Parameters
+    ----------
+    config : np.ndarray
+        Two-dimensional magnetic configuration.
+    repeat : int
+        Number of times to stack slices.
+    axis : int
+        Axis along which to stack slices.
+
+    Returns
+    -------
+    np.ndarray
+        Stacked 3D structure.
+    """
     return np.stack([config] * repeat, axis=axis)
 
 
-def _create_mesh_ints(*args: list[int]):
+def _create_mesh_ints(*args):
     """Creates an ND mesh centered at the origin.
 
-    :param args:  The integer dimensions of the mesh.
-    :return:      ND mesh centered at the origin with unit spacing.
+    Parameters
+    ----------
+    args : list of int
+        The integer dimensions of the mesh.
+
+    Returns
+    -------
+    np.ndarray
+        N-dimensional mesh centered at the origin with unit spacing.
     """
     if any(not isinstance(v, int) for v in args) or min(args) < 1:
         raise ValueError("Only positive integer values can be converted to a mesh.")
@@ -195,11 +282,20 @@ def _create_mesh_ints(*args: list[int]):
     return np.meshgrid(*vectors, indexing='ij')
 
 
-def create_mesh(*args: Union[np.ndarray, int, float, list[Union[int, float]]]):
-    """Creates an ND mesh with the specified dimensions.
+def create_mesh(*args):
+    """Creates an N-dimensional mesh with the specified dimensions.
 
-    :param args:  The integer dimensions of the mesh or all points along the dimension.
-    :return:      ND mesh for the corresponding array."""
+    The number `N` is the number of arguments.
+
+    Parameters
+    ----------
+    args : int | float | list of int | list of float | np.ndarray
+        The integer dimensions of the mesh or all points along the dimension.
+
+    Returns
+    -------
+    np.ndarray
+        N-dimensional mesh for the corresponding array."""
     if len(args) < 1:
         raise ValueError("Need more than one dimensions.")
     if all(isinstance(v, int) for v in args):

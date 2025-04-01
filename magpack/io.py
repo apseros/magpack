@@ -1,50 +1,80 @@
+import logging
 import numpy as np
-from scipy.linalg import sqrtm
-
 from magpack import _ovf_reader
-from typing import Optional
 from pyevtk.vtk import VtkFile, VtkRectilinearGrid
 import matplotlib as mpl
 from PIL import Image
+from scipy.io import savemat, loadmat
 
 
-def save_vtk(filename: str, scalars: Optional[dict], vectors: Optional[dict], colors: Optional[dict]) -> None:
+def save_vtk(filename, scalars=None, vectors=None, colors=None):
     """Saves data into a VTK file.
 
-    :param filename:    Name of output file.
-    :param scalars:     Dictionary of scalar fields with the same shape.
-    :param vectors:     Dictionary of vector data.
-    :param colors:      Dictionary of color data.
-    :return:            None
+    Parameters
+    ----------
+    filename : str
+        Name of output file.
+    scalars : dict (optional)
+        Dictionary of scalar fields.
+    vectors : dict (optional)
+        Dictionary of vector data. Vectors should be provided in the shape (3, ...).
+    colors : dict (optional)
+        Dictionary of color data. Colors should be provided in the shape (..., 3).
     """
+
+    if all(x is None for x in (scalars, vectors, colors)):
+        raise ValueError("At least one of scalars, vectors, or colors must not be None.")
+
+    if scalars is None:
+        scalars = {}
+    if vectors is None:
+        vectors = {}
+    if colors is None:
+        colors = {}
+
     # validate inputs
     scalar_shapes = [item.shape for item in scalars.values()]
-    vector_shapes = [item.shape[-3:] for item in vectors.values()]
-    color_shapes = [item.shape[:3] for item in colors.values()]
+    vector_shapes = [item.shape[1:] for item in vectors.values()]
+    color_shapes = [item.shape[:-1] for item in colors.values()]
 
     # convert shapes to set and check if they are all the same
     shape = {*scalar_shapes, *vector_shapes, *color_shapes}
     if len(shape) != 1:
-        raise ValueError('All scalars and vectors should have the same shape.')
-
+        raise ValueError("All scalars and vectors should have the same shape.")
     shape = shape.pop()
+
+    def expand_dimensions(s, v, c):
+        """Expands dimensions of scalars, vectors, and colors appropriately."""
+        s = {k: v[..., np.newaxis] for k, v in s.items()}
+        v = {k: v[..., np.newaxis] for k, v in v.items()}
+        c = {k: v[np.newaxis, ...] for k, v in c.items()}
+        return s, v, c
+
+    if len(shape) == 1:
+        scalars, vectors, colors = expand_dimensions(scalars, vectors, colors)
+        shape = (*shape, 1)
+    if len(shape) == 2:
+        scalars, vectors, colors = expand_dimensions(scalars, vectors, colors)
+        shape = (*shape, 1)
+
+    ndim = len(shape)
     w = VtkFile(filename, VtkRectilinearGrid)
-    w.openGrid(start=(0, 0, 0), end=tuple(dim - 1 for dim in shape))
-    w.openPiece(start=(0, 0, 0), end=tuple(dim - 1 for dim in shape))
+    w.openGrid(start=(0,) * ndim, end=tuple(dim - 1 for dim in shape))
+    w.openPiece(start=(0,) * ndim, end=tuple(dim - 1 for dim in shape))
 
     # Point data (value is assigned to the edge points
     xx, yy, zz = [np.arange(dim + 1) for dim in shape]
     w.openData("Point", scalars=scalars.keys(), vectors=[*vectors.keys(), *colors.keys()])
     for scalar_field_name, scalar_field in scalars.items():
-        print(f"Writing {scalar_field_name=}")
+        logging.info(f"Writing {scalar_field_name=}")
         w.addData(scalar_field_name, scalar_field)
 
     for vector_field_name, vector_field in vectors.items():
-        print(f"Writing {vector_field_name=}")
+        logging.info(f"Writing {vector_field_name=}")
         w.addData(vector_field_name, (vector_field[0], vector_field[1], vector_field[2]))
 
     for color_field_name, color_field in colors.items():
-        print(f"Writing {color_field_name=}")
+        logging.info(f"Writing {color_field_name=}")
         w.addData(color_field_name, (color_field[..., 0], color_field[..., 1], color_field[..., 2]))
 
     w.closeData("Point")
@@ -69,39 +99,60 @@ def save_vtk(filename: str, scalars: Optional[dict], vectors: Optional[dict], co
     w.save()
 
 
-def save_mat(filename: str, **data_dictionary) -> None:
+def save_mat(filename, **data_dictionary):
     """Saves function arguments to a .mat file. Wrapper for scipy.io.savemat.
 
-    :param filename:            Name of output file.
-    :param data_dictionary:     Unpacked dictionary of data."""
-    from scipy.io import savemat
+    Parameters
+    ----------
+    filename : str
+        Name of output file.
+    data_dictionary :
+        Dictionary of data to save
+    """
     savemat(filename, data_dictionary)
 
 
-def load_mat(filename: str) -> dict:
+def load_mat(filename):
     """Loads a .mat file. Wrapper for scipy.io.loadmat.
 
-    :param filename:    Name of input file.
-    :return:            Dictionary of loaded variables."""
-    from scipy.io import loadmat
+    Parameters
+    ----------
+    filename : str
+        Name of output file.
+
+    Returns
+    -------
+    dict
+        Dictionary with variables."""
     return loadmat(filename)
 
 
-def load_ovf(filename: str) -> _ovf_reader.OVF:
-    """Loads a .ovf file and return an OVF object.
+def load_ovf(filename):
+    """Loads a .ovf file and returns an OVF object.
 
-    The magnetization can be accessed using OVF.magnetization and metadata using the OVF.properties.
+    Parameters
+    ----------
+    filename : str
+        Name of output file.
 
-    :param filename:    Name of input file.
-    :return:            OVF object."""
+    Returns
+    -------
+    OVF
+        The magnetization can be accessed using OVF.magnetization and metadata using the OVF.properties.
+    """
     return _ovf_reader.OVF(filename)
 
 
-def see_keys(data: dict, prefix: str = '') -> None:
+def see_keys(data, prefix=''):
     """Recursively prints keys of a dictionary. Useful for HDF5 files.
 
-    :param data:    Data (e.g. an HDF5 file).
-    :param prefix:  Prefix to prepend to keys."""
+    Parameters
+    ----------
+    data : dict
+        Dictionary to print.
+    prefix : str (optional)
+        Prefix to prepend to keys.
+    """
     try:
         keys = list(data.keys())
     except AttributeError:
@@ -113,18 +164,27 @@ def see_keys(data: dict, prefix: str = '') -> None:
         see_keys(data[j], previous + '/')
 
 
-def save_image(img: np.array, filename: str, cmap: str = 'viridis', vmin: float = None, vmax: float = None,
-               alpha: bool = False, alpha_thresh: int = 750, indexing: str = 'ij') -> None:
+def save_image(img, filename, cmap='viridis', vmin=None, vmax=None, alpha=False, alpha_thresh=750, indexing='ij'):
     """Saves a numpy array as a full resolution png file.
 
-    :param img:             Array to be saved.
-    :param filename:        Name of output file.
-    :param cmap:            Matplotlib colormap name.
-    :param vmin:            Lower bound for colorbar axis (defaults to minimum value in the img array).
-    :param vmax:            Upper bound for colorbar axis (defaults to maximum value in the img array).
-    :param alpha:           Option to make bright pixels (white) transparent.
-    :param alpha_thresh:    Threshold value for transparency (max 765 = 255*3).
-    :param indexing:        Indexing scheme (xy is for matplotlib convention, default is ij).
+    Parameters
+    ----------
+    img : np.ndarray
+        Image to save.
+    filename : str
+        Name of output file.
+    cmap : str (optional)
+        Matplotlib colormap name.
+    vmin : float (optional)
+        Lower bound for colorbar axis (defaults to minimum value in the img array).
+    vmax : float (optional)
+        Upper bound for colorbar axis (defaults to maximum value in the img array).
+    alpha : bool (optional)
+        Option to make bright pixels (white) transparent.
+    alpha_thresh : int (optional)
+        Threshold value for transparency (max 765 = 255*3).
+    indexing : str (optional)
+        Indexing scheme (xy is for matplotlib convention, default is ij).
     """
     # in case of RGB data
     if img.ndim == 3 and img.shape[2] in [3, 4]:
@@ -151,13 +211,19 @@ def save_image(img: np.array, filename: str, cmap: str = 'viridis', vmin: float 
     save_im.save(filename)
 
 
-def white_to_alpha(image_path: str, output_path: str, tolerance: float = 1) -> None:
+def white_to_alpha(image_path, output_path, tolerance=1):
     """Converts white or bright pixels of a png image to transparent.
 
-    :param image_path:      Path to image to be converted.
-    :param output_path:     Path to output image.
-    :param tolerance:       Tolerance for transparency. With 0 tolerance only strictly white pixels become transparent.
-    :returns:               None"""
+    Parameters
+    ----------
+    image_path : str
+        Path to image to convert.
+    output_path : str
+        Path to output image.
+    tolerance : float (optional)
+        Tolerance for transparency. With 0 tolerance only strictly white pixels become transparent.
+
+    """
     img = Image.open(image_path)
     # Convert to RGBA if not already in RGBA mode
     tolerance = 1e-10 if tolerance <= 0 else tolerance
