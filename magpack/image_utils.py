@@ -201,8 +201,8 @@ def remove_distortion(img, filename=None, show_result=False, margin=0.05, order=
 def rgb2gray(rgb):
     """Converts RGB/RGBA data of shape (x, y, ..., 3) to grayscale.
 
-    The output is in the same range as the input, so either [0,1] or [0,255] ranges work.
-    Only 3 indices from the last dimension are used, the rest are discarded.
+    The output is in the same range as the input (e.g. [0,1] or [0,255]). Only the first 3 indices from the last
+    dimension are used.
 
     Parameters
     ----------

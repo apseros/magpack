@@ -1,8 +1,6 @@
 import numpy as np
 from itertools import combinations
 
-DEFAULT_INTERPOLATION_ORDER = 1
-
 
 def scalar_gradient(scalar_field):
     """Compute the gradient of a scalar field.
@@ -143,7 +141,7 @@ def vorticity(vector_field):
 
         \Omega_i = \frac{1}{8\pi}\epsilon_{abc}\epsilon_{ijk}m_{i}\partial_{b}m_{j}\partial_{c}m_{k}
 
-    .. warning:: This calculation is slow and can be improved by writing out the expression more explicitly.
+    .. warning:: This calculation is slow and can be improved by writing out the expression explicitly.
 
     References
     ----------
@@ -234,7 +232,7 @@ def magnitude(vector_field):
     return np.sqrt(np.sum(vector_field ** 2, axis=0))
 
 
-def scale_range(values, norm_list = None, mask_zero = True):
+def scale_range(values, norm_list=None, mask_zero=True):
     """Scales all values in the array such that they lie within the specified range.
 
     Parameters
@@ -279,7 +277,7 @@ def normalize(vector_field):
         Unit-normalized vector field.
     """
     mag = magnitude(vector_field)
-    return np.divide(vector_field, mag, where=mag != 0)
+    return np.divide(vector_field, mag, where=mag != 0, out=np.zeros_like(vector_field))
 
 
 def cart2sph(x, y, z):

@@ -13,8 +13,8 @@ magpack documentation
    Usage <usage>
    magpack reference <_autosummary/magpack>
 
-Indices and tables
-==================
+Indices and Tables
+^^^^^^^^^^^^^^^^^^
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`

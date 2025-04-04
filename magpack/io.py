@@ -165,7 +165,7 @@ def see_keys(data, prefix=''):
 
 
 def save_image(img, filename, cmap='viridis', vmin=None, vmax=None, alpha=False, alpha_thresh=750, indexing='ij'):
-    """Saves a numpy array as a full resolution png file.
+    r"""Saves a numpy array as a full resolution png file.
 
     Parameters
     ----------
@@ -182,9 +182,9 @@ def save_image(img, filename, cmap='viridis', vmin=None, vmax=None, alpha=False,
     alpha : bool (optional)
         Option to make bright pixels (white) transparent.
     alpha_thresh : int (optional)
-        Threshold value for transparency (max 765 = 255*3).
-    indexing : str (optional)
-        Indexing scheme (xy is for matplotlib convention, default is ij).
+        Threshold value for transparency, maximum value is :math:`765 (=255\times3)`.
+    indexing : {'ij', 'xy'} (optional)
+        Indexing scheme (xy for matplotlib convention, default is ij).
     """
     # in case of RGB data
     if img.ndim == 3 and img.shape[2] in [3, 4]:

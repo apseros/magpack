@@ -1,6 +1,5 @@
 import logging
 import numpy as np
-from typing import Union
 from magpack.vectorop import cart2pol, sph2cart, cart2sph
 import itertools
 import random

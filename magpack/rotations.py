@@ -121,17 +121,20 @@ def rot(theta, degrees=True):
     return r
 
 
-def eul2rot(seq, *args, degrees=True):
+def eul2rot(seq, *args, degrees=True, reverse_order=False):
     r"""Returns a stack of rotation matrices following the sequence and the corresponding angles.
 
     Parameters
     ----------
+    reverse_order
     seq : str
-        Sequence of rotation operations (first operation listed first).
+        Sequence of rotation operations (first operation listed on the right, follows matrix multiplication rule).
     args : array_like
         Unpacked list of angles (or array of angles) matching the length of the sequence.
     degrees : bool
-    True for degrees, False for radians.
+        True for degrees, False for radians.
+    reverse_order : bool
+        By default, the rightmost arguement is expanded first.
 
     Returns
     -------
@@ -146,12 +149,36 @@ def eul2rot(seq, *args, degrees=True):
     --------
     Dual-axis tomography: Describes full 180° rotations for each of the two tilts: 0° and 30°.
 
-    >>> eul2rot('zy', [0, 30], np.linspace(1, 180))
+    >>> eul2rot('yz', np.linspace(1, 180), [0,30])
 
     Laminography: Full 360° rotation around an axis that is slanted by 45° around the y-axis.
 
-    >>> eul2rot('yz', np.linspace(1,360), 45)
+    >>> eul2rot('zy', 45, np.linspace(1,360))
 
+    The regular order of producing the rotation matrix array assumes that the first array should be traversed before
+    moving to the second array. By setting ``reverse_order=True``, the last array is traversed first, before traversing
+    the second to last array, and so on. The resulting operations describe the same rotations and geometry, but are
+    ordered diffently.Example of the change of order shown below: (not true outputs)
+
+    >>> eul2rot('yzx', [0, 1, 2], [0,30], 45)
+    [[ 0  0 45]     # roty(0) @ rotz(0)  @ rotx(45)
+     [ 1  0 45]     # roty(1) @ rotz(0)  @ rotx(45)
+     [ 2  0 45]     # roty(2) @ rotz(0)  @ rotx(45)
+     [ 3  0 45]     # roty(3) @ rotz(0)  @ rotx(45)
+     [ 0 30 45]     # roty(0) @ rotz(30) @ rotx(45)
+     [ 1 30 45]     # roty(1) @ rotz(30) @ rotx(45)
+     [ 2 30 45]     # roty(2) @ rotz(30) @ rotx(45)
+     [ 3 30 45]]    # roty(3) @ rotz(30) @ rotx(45)
+
+    >>> eul2rot('yzx', [0, 1, 2], [0,30], 45, reverse_order=True)
+    [[ 0  0 45]     # roty(0) @ rotz(0)  @ rotx(45)
+     [ 0 30 45]     # roty(0) @ rotz(30) @ rotx(45)
+     [ 1  0 45]     # roty(1) @ rotz(0)  @ rotx(45)
+     [ 1 30 45]     # roty(1) @ rotz(30) @ rotx(45)
+     [ 2  0 45]     # roty(2) @ rotz(0)  @ rotx(45)
+     [ 2 30 45]     # roty(2) @ rotz(30) @ rotx(45)
+     [ 3  0 45]     # roty(3) @ rotz(0)  @ rotx(45)
+     [ 3 30 45]]    # roty(3) @ rotz(30) @ rotx(45)
     """
     seq_regex = re.compile("^[xyz]+$")
     if not (seq_regex.match(seq)):
@@ -167,7 +194,11 @@ def eul2rot(seq, *args, degrees=True):
         raise ValueError(f"Sequence of rotations must match input arguments. Sequence has {len_seq} operations but"
                          f" {n_args} were given.")
     all_rotations = np.meshgrid(*args, indexing='ij')
-    table = np.array(all_rotations).T.reshape(-1, n_args, order='F')
+
+    if not reverse_order:
+        table = np.array(all_rotations).reshape(n_args, -1, order='F').T
+    else:
+        table = np.array(all_rotations).T.reshape(-1, n_args, order='F')
 
     # creates a 2D table with all operations. Each row is one measurement orientation.
     rot_dict = {'x': rotx, 'y': roty, 'z': rotz}
@@ -175,7 +206,7 @@ def eul2rot(seq, *args, degrees=True):
     return np.array(list(rot_all)).squeeze()
 
 
-def tomo_rot(angles, tilts = 0):
+def tomo_rot(angles, tilts=0):
     r"""Generates a stack of rotation matrices describing tomography with tilting.
 
     Parameters
@@ -194,10 +225,10 @@ def tomo_rot(angles, tilts = 0):
     --------
     eul2rot, lamni_rot
     """
-    return eul2rot('zy', tilts, angles)
+    return eul2rot('yz', angles, tilts)
 
 
-def lamni_rot(angles, lamni_tilt = 45, lamni_skew = 0):
+def lamni_rot(angles, lamni_tilt=45, lamni_skew=0):
     r"""Generates a stack of rotation matrices describing laminography.
 
     Parameters
@@ -219,7 +250,7 @@ def lamni_rot(angles, lamni_tilt = 45, lamni_skew = 0):
     --------
     eul2rot, tomo_rot
     """
-    return eul2rot('yzx', angles, lamni_tilt, lamni_skew)
+    return eul2rot('zxy', lamni_skew, lamni_tilt, angles, reverse_order=True)
 
 
 def transform_field(vector_field, rot_matrix):
@@ -244,7 +275,7 @@ def transform_field(vector_field, rot_matrix):
     return np.einsum('ij,j...->i...', rot_matrix, vector_field)
 
 
-def rotate_vector_field(vector_field, rot_matrix, order = 1):
+def rotate_vector_field(vector_field, rot_matrix, order=1):
     """Rotates a vector field according to the provided rotation matrix.
 
     Parameters
@@ -272,11 +303,10 @@ def rotate_vector_field(vector_field, rot_matrix, order = 1):
     new_rot_matrix = np.zeros((n_spatial_dims + 1, n_spatial_dims + 1))
     new_rot_matrix[0, 0] = 1
     new_rot_matrix[1:, 1:] = rot_matrix[0:n_spatial_dims, 0:n_spatial_dims]
-
     return rotate_scalar_field(vector_field, new_rot_matrix, order=order)
 
 
-def rotate_scalar_field(field, rot_matrix, order = 1):
+def rotate_scalar_field(field, rot_matrix, order=1):
     """Rotates a scalar field according to the provided rotation matrix.
 
     Parameters

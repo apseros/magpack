@@ -2,3 +2,4 @@
 .DS_Store
 /doc/build/
 /doc/source/_autosummary/
+/validate.sh

@@ -5,6 +5,7 @@ import logging
 
 
 def _get_binary(flag, binary: int):
+    """Reads binary information from a file."""
     if binary == 4:
         if struct.unpack('>f', flag)[0] == 1234567.0:
             dtype = '>f4'
@@ -32,10 +33,19 @@ def _get_binary(flag, binary: int):
 
 
 class OVF:
-    """Class for reading OVF files."""
+    """Class for reading OVF files.
 
+    Attributes
+    ----------
+    filename : str
+        The filename of the OVF file.
+    properties : dict
+        The properties found in the metadata of the OVF file.
+    magnetization : np.ndarray
+        The magnetization vector field.
+    """
     @classmethod
-    def _validate(cls, filename: str):
+    def _validate(cls, filename):
         try:
             open(filename, 'rb')
         except FileNotFoundError:
@@ -43,23 +53,28 @@ class OVF:
             return False
         return True
 
-    def __new__(cls, filename: str):
+    def __new__(cls, filename):
         if cls._validate(filename):
             return super().__new__(cls)
 
-    def __init__(self, filename: str):
-        #: Path to the ovf file.
+    def __init__(self, filename):
+        """
+        Parameters
+        ----------
+        filename : str
+            The filename of the OVF file.
+        """
+        # Path to the ovf file.
         self.filename: str = filename
-        #: Dictionary with OVF metadata.
+        # Dictionary with OVF metadata.
         self.properties: dict = {}
-        #: Magnetization read from the OVF file provided as a numpy array with shape (3, nx, ny, nz):
-        #: (magnetization component, spatial x dimension, spatial y dimension, spatial z dimension).
+        # Magnetization read from the OVF file provided as a numpy array with shape (3, nx, ny, nz):
+        # (magnetization component, spatial x dimension, spatial y dimension, spatial z dimension).
         self.magnetization: np.ndarray
         self._get_data()
 
     def _get_data(self):
         """Loads metadata and magnetization binary from OVF file."""
-
         pattern = r'#\s(?!Begin|End)([\w]+): (\d.?\d*[eE][+-]\d+]?|\d+)'  # matches header metadata
         try:
             file = open(self.filename, 'rb')

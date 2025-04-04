@@ -15,7 +15,7 @@ sys.path.insert(0, basedir)
 project = 'magpack'
 copyright = '2025, Andreas Apseros'
 author = 'Andreas Apseros'
-release = '0.2.0'
+release = '0.2.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -34,6 +34,9 @@ set_type_checking_flag = True  # Enable 'expensive' imports for sphinx_autodoc_t
 nbsphinx_allow_errors = True  # Continue through Jupyter errors
 autodoc_typehints = "description" # Sphinx-native method. Not as good as sphinx_autodoc_typehints
 add_module_names = False # Remove namespaces from class/method signatures
+numpydoc_class_members_toctree = False
+numpydoc_show_class_members = False
+numpydoc_show_inherited_class_members = False
 
 templates_path = ['_templates']
 exclude_patterns = []
